@@ -401,7 +401,7 @@ class GF_DPO_Group extends GFPaymentAddOn
         ob_start();
         ?>
         <div id='gf_dpo_group_custom_settings'>
-			<?php
+            <?php
 do_action( 'gform_dpo_group_add_option_group', $this->get_current_feed(), $this->get_current_form() );
         ?>
         </div>
@@ -412,7 +412,7 @@ do_action( 'gform_dpo_group_add_option_group', $this->get_current_feed(), $this-
             });
         </script>
 
-		<?php
+        <?php
 $html = ob_get_clean();
 
         if ( $echo ) {
@@ -504,14 +504,14 @@ $html = ob_get_clean();
         // Updating lead's payment_status to Processing
         GFAPI::update_entry_property( $entry['id'], 'payment_status', 'Pending' );
 
-        $return_url = $this->return_url( $form['id'], $entry['id'], $entry['created_by'], $feed['id'] );
+        //Set return mode
+        $return_mode = '2';
+        $return_url  = $this->return_url( $form['id'], $entry['id'], $entry['created_by'], $feed['id'] );
+        $return_url  = $this->dpo_group_add_query_arg( array( 'rm' => $return_mode ), $return_url );
 
         $back_url   = $return_url;
         $eid        = DPO_Group_GF_encryption( $entry['id'], 'e' );
         $return_url = $this->dpo_group_add_query_arg( array( 'eid' => $eid ), $return_url );
-
-        // URL that will listen to notifications from DPO Group
-        $notify_url = get_bloginfo( 'url' ) . '/?page=gf_dpo_group';
 
         $country_code3 = 'ZAF';
         $country_code2 = strtoupper( GFCommon::get_country_code( $submission_data['country'] ) );
@@ -523,8 +523,8 @@ $html = ob_get_clean();
             }
         }
 
-        $testMode = $feed['meta']['mode'] === 'test' ? true : false;
-        $return_url .= '?mode=' . $testMode;
+        $testMode               = $feed['meta']['mode'] === 'test' ? true : false;
+        $return_url             = $this->dpo_group_add_query_arg( array( 'mode' => $testMode ? 'on' : 'off' ), $return_url );
         $DPO_GroupMerchantToken = $feed['meta']['DPO_GroupMerchantToken'];
         setcookie( 'DPO_GroupMerchantToken', DPO_Group_GF_encryption( $DPO_GroupMerchantToken, 'e' ), time() + 24 * 3600 * 30 );
         $DPO_GroupServiceType = $feed['meta']['DPO_GroupServiceType'];
@@ -555,6 +555,7 @@ $html = ob_get_clean();
         $data['customerLastName']  = $entry[$feed['meta']['billingInformation_lastName']];
         $data['customerAddress']   = $entry[$feed['meta']['billingInformation_address']];
         $data['customerCity']      = $entry[$feed['meta']['billingInformation_city']];
+        $data['customerCountry']   = $entry[$feed['meta']['billingInformation_country']];
         $data['customerPhone']     = str_replace( [
             '+',
             '-',
@@ -780,7 +781,6 @@ $html = ob_get_clean();
 
     public static function maybe_thankyou_page()
     {
-
     }
 
     public function get_customer_fields()
@@ -913,6 +913,10 @@ $html = ob_get_clean();
             // Notify DPO Group that the request was successful
             //            echo "OK";
 
+            $parts = self::process_get( $_GET );
+
+            $merged = GW_DPO_Group_Post_Content_Merge_Tags::get_instance()->replace_merge_tags( $parts );
+
             $instance = self::get_instance();
 
             $returns = $instance->process_get( $_GET );
@@ -990,14 +994,15 @@ $html = ob_get_clean();
                         $status_desc = 'approved';
                         // Creates transaction
                         GFAPI::update_entry_property( $notify_data['ID'], 'payment_status', 'Approved' );
-                        GFAPI::update_entry_property( $notify_data['ID'], 'transaction_id', $notify_data['REFERENCE'] );
+                        GFAPI::update_entry_property( $notify_data['ID'], 'transaction_id', $notify_data['TransID'] );
                         GFAPI::update_entry_property( $notify_data['ID'], 'transaction_type', '1' );
                         GFAPI::update_entry_property( $notify_data['ID'], 'payment_amount', number_format( $notify_data['AMOUNT'], 2, ',', '' ) );
                         GFAPI::update_entry_property( $notify_data['ID'], 'is_fulfilled', '1' );
                         GFAPI::update_entry_property( $notify_data['ID'], 'payment_method', 'DPO Group' );
                         GFAPI::update_entry_property( $notify_data['ID'], 'payment_date', gmdate( 'y-m-d H:i:s' ) );
 
-                        GFPaymentAddOn::insert_transaction( $notify_data['ID'], 'complete_payment', $notify_data['REFERENCE'], number_format( $notify_data['AMOUNT'], 2, ',', '' ) );
+//                        GFPaymentAddOn::insert_transaction($notify_data['ID'], 'complete_payment', $notify_data['REFERENCE'], number_format($notify_data['AMOUNT'], 2, ',', ''));
+                        self::get_instance()->insert_transaction( $notify_data['ID'], 'complete_payment', $notify_data['REFERENCE'], number_format( $notify_data['AMOUNT'], 2, ',', '' ) );
                         GFFormsModel::add_note( $notify_data['ID'], '', 'DPO Group Notify Response', 'Transaction approved, DPO Group TransId: ' . $notify_data['TRANSACTION_ID'] . ' ApprovalCode: ' . sanitize_text_field( $verify->TransactionApproval->__toString() ) );
                         // Set payment notification event
                         $payment_notification_event = 'approved_payment';
@@ -1300,7 +1305,7 @@ $html = ob_get_clean();
 
             </div>
         </div>
-		<?php
+        <?php
 }
 
     public function admin_edit_payment_status( $payment_status, $form, $lead )
@@ -1414,7 +1419,7 @@ $html = ob_get_clean();
                 </tr>
             </table>
         </div>
-		<?php
+        <?php
 }
 
     public function admin_update_payment( $form, $lead_id )
