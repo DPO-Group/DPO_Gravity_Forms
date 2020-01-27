@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (c) 2019 DPO Group
+ * Copyright (c) 2020 DPO Group
  *
  * Author: App Inlet (Pty) Ltd
  *
@@ -113,6 +113,7 @@ class dpo_grouppay
         $customerLastName  = $data['customerLastName'];
         $customerAddress   = $data['customerAddress'];
         $customerCity      = $data['customerCity'];
+        $customerCountry   = $this->get_country_code( $data['customerCountry'] );
         $customerPhone     = $data['customerPhone'];
         $redirectURL       = $data['redirectURL'];
         $backURL           = $data['backUrl'];
@@ -133,6 +134,7 @@ class dpo_grouppay
         <customerLastName>$customerLastName</customerLastName>
         <customerAddress>$customerAddress</customerAddress>
         <customerCity>$customerCity</customerCity>
+        <customerCountry>$customerCountry</customerCountry>
         <customerPhone>$customerPhone</customerPhone>
         <RedirectURL>$redirectURL</RedirectURL>
         <BackURL>$backURL</BackURL>
@@ -278,5 +280,12 @@ POSTXML;
           <script>
                document.forms['dpo_group'].submit();
           </script>";
+    }
+
+    private function get_country_code( $customerCountry )
+    {
+        include_once 'CountriesArray.php';
+        $countries = new CountriesArray();
+        return $countries->getCountryCode( $customerCountry );
     }
 }

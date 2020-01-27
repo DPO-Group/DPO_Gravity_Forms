@@ -1,2 +1,6 @@
+= 1.0.1 - January 27, 2020 =
+* Fix merge field bugs in confirmation and notification e-mails.
+* Populate country field automatically.
+
 = 1.0.0 - November 15, 2019 =
 * Initial release.

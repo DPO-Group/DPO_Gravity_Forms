@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright (c) 2019 DPO Group
+ * Copyright (c) 2020 DPO Group
  *
  * Author: App Inlet (Pty) Ltd
  *

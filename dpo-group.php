@@ -4,15 +4,15 @@
  * Plugin Name: Gravity Forms DPO Group Add-On
  * Plugin URI: https://github.com/DirectPay-Online/DPO_Gravity_Forms
  * Description: Integrates Gravity Forms with DPO Group, a An African payment gateway.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: DPO Group
- * Author URI: https://www.directpay.online/
+ * Author URI: https://www.dpogroup.com/africa/
  * Developer: App Inlet (Pty) Ltd
  * Developer URI: https://www.appinlet.com/
  * Text Domain: gravity-forms-dpo-group
  * Domain Path: /languages
  *
- * Copyright: © 2019 DPO Group
+ * Copyright: © 2020 DPO Group
  * License: GNU General Public License v3.0
  * License URI: http://www.gnu.org/licenses/gpl-3.0.html
  */
@@ -48,7 +48,7 @@ function dpo_group_init()
             'homepage'           => 'https://github.com/DirectPay-Online/DPO_Gravity_Forms',
             'sslverify'          => true,
             'requires'           => '4.0',
-            'tested'             => '4.9.8',
+            'tested'             => '5.3.2',
             'readme'             => 'README.md',
             'access_token'       => '',
         );
