@@ -2,9 +2,11 @@
 
 /**
  * Plugin Name: Gravity Forms DPO Group Add-On
- * Plugin URI: https://github.com/DirectPay-Online/DPO_Gravity_Forms
+ * Plugin URI: https://github.com/DPO-Group/DPO_Gravity_Forms
  * Description: Integrates Gravity Forms with DPO Group, a An African payment gateway.
- * Version: 1.0.1
+ * Version: 1.0.2
+ * Minimum Gravity Forms Version: 2.2.5
+ * Tested Gravity Forms Version: 2.5.2
  * Author: DPO Group
  * Author URI: https://www.dpogroup.com/africa/
  * Developer: App Inlet (Pty) Ltd
@@ -12,7 +14,7 @@
  * Text Domain: gravity-forms-dpo-group
  * Domain Path: /languages
  *
- * Copyright: © 2020 DPO Group
+ * Copyright: © 2021 DPO Group
  * License: GNU General Public License v3.0
  * License URI: http://www.gnu.org/licenses/gpl-3.0.html
  */
@@ -41,14 +43,14 @@ function dpo_group_init()
         $config = array(
             'slug'               => plugin_basename( __FILE__ ),
             'proper_folder_name' => 'gravity-forms-dpo-group-plugin',
-            'api_url'            => 'https://api.github.com/repos/DirectPay-Online/DPO_Gravity_Forms',
-            'raw_url'            => 'https://raw.github.com/DirectPay-Online/DPO_Gravity_Forms/master',
-            'github_url'         => 'https://github.com/DirectPay-Online/DPO_Gravity_Forms',
-            'zip_url'            => 'https://github.com/DirectPay-Online/DPO_Gravity_Forms/archive/master.zip',
-            'homepage'           => 'https://github.com/DirectPay-Online/DPO_Gravity_Forms',
+            'api_url'            => 'https://api.github.com/repos/DPO-Group/DPO_Gravity_Forms',
+            'raw_url'            => 'https://raw.github.com/DPO-Group/DPO_Gravity_Forms/master',
+            'github_url'         => 'https://github.com/DPO-Group/DPO_Gravity_Forms',
+            'zip_url'            => 'https://github.com/DPO-Group/DPO_Gravity_Forms/archive/master.zip',
+            'homepage'           => 'https://github.com/DPO-Group/DPO_Gravity_Forms',
             'sslverify'          => true,
             'requires'           => '4.0',
-            'tested'             => '5.3.2',
+            'tested'             => '5.7.2',
             'readme'             => 'README.md',
             'access_token'       => '',
         );
