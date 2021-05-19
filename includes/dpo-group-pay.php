@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (c) 2020 DPO Group
+ * Copyright (c) 2021 DPO Group
  *
  * Author: App Inlet (Pty) Ltd
  *
@@ -139,6 +139,7 @@ class dpo_grouppay
         <RedirectURL>$redirectURL</RedirectURL>
         <BackURL>$backURL</BackURL>
         <customerEmail>$customerEmail</customerEmail>
+        <TransactionSource>gravity-forms</TransactionSource>
         </Transaction>
         <Services>
         <Service>
