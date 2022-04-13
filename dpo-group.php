@@ -4,7 +4,7 @@
  * Plugin Name: Gravity Forms DPO Group Add-On
  * Plugin URI: https://github.com/DPO-Group/DPO_Gravity_Forms
  * Description: Integrates Gravity Forms with DPO Group, a An African payment gateway.
- * Version: 1.0.2
+ * Version: 1.0.3
  * Minimum Gravity Forms Version: 2.2.5
  * Tested Gravity Forms Version: 2.5.2
  * Author: DPO Group

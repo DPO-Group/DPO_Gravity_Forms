@@ -1,10 +1,10 @@
 # DPO_Gravity_Forms
-## DPO Group WooCommerce plugin v1.0.2 for Gravity Forms v2.5.2, WordPress v5.7.2
+## DPO Group WooCommerce plugin v1.0.3 for Gravity Forms v2.5.2, WordPress v5.7.2
 
 This is the DPO Group plugin for Gravity Forms. Please feel free to contact the [DPO Group support team](https://dpogroup.com/contact-us/) should you require any assistance.
 
 ## Installation
-Please navigate to the [releases page](https://github.com/DPO-Group/DPO_Gravity_Forms/releases), download the latest release (v1.0.2) and unzip. You will then be able to follow the integration guide which is included in the zip.
+Please navigate to the [releases page](https://github.com/DPO-Group/DPO_Gravity_Forms/releases), download the latest release (v1.0.3) and unzip. You will then be able to follow the integration guide which is included in the zip.
 
 ## Collaboration
 
