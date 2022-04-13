@@ -17,7 +17,7 @@ class dpo_grouppay
     /**
      * Constants for test (sandbox) or live sites base URL
      */
-    const DPO_Group_URL_TEST = 'https://secure1.sandbox.directpay.online';
+    const DPO_Group_URL_TEST = 'https://secure.3gdirectpay.com';
     const DPO_Group_URL_LIVE = 'https://secure.3gdirectpay.com';
 
     /**
@@ -61,15 +61,13 @@ class dpo_grouppay
             $this->dpo_groupUrl = self::DPO_Group_URL_TEST;
             $this->testMode     = true;
             $this->testText     = 'teston';
-            $this->companyToken = '9F416C11-127B-4DE2-AC7F-D5710E4C5E0A';
-            $this->serviceType  = '3854';
         } else {
             $this->dpo_groupUrl = self::DPO_Group_URL_LIVE;
             $this->testMode     = false;
             $this->testText     = 'liveon';
-            $this->companyToken = $settings['DPO_GroupMerchantToken'];
-            $this->serviceType  = $settings['DPO_GroupServiceType'];
         }
+        $this->companyToken = $settings['DPO_GroupMerchantToken'];
+        $this->serviceType  = $settings['DPO_GroupServiceType'];
         $this->dpo_groupGateway = $this->dpo_groupUrl . '/payv2.php';
 
     }
@@ -114,7 +112,7 @@ class dpo_grouppay
         $customerAddress   = $data['customerAddress'];
         $customerCity      = $data['customerCity'];
         $customerCountry   = $this->get_country_code( $data['customerCountry'] );
-        $customerPhone     = $data['customerPhone'];
+        $customerPhone     = preg_replace( '/[^0-9]/', '', $data['customerPhone'] );
         $redirectURL       = $data['redirectURL'];
         $backURL           = $data['backUrl'];
         $customerEmail     = $data['customerEmail'];
@@ -122,33 +120,7 @@ class dpo_grouppay
 
         $odate   = date( 'Y/m/d H:i' );
         $postXml = <<<POSTXML
-        <?xml version="1.0" encoding="utf-8"?>
-        <API3G>
-        <CompanyToken>$companyToken</CompanyToken>
-        <Request>createToken</Request>
-        <Transaction>
-        <PaymentAmount>$paymentAmount</PaymentAmount>
-        <PaymentCurrency>$paymentCurrency</PaymentCurrency>
-        <CompanyRef>$reference</CompanyRef>
-        <customerFirstName>$customerFirstName</customerFirstName>
-        <customerLastName>$customerLastName</customerLastName>
-        <customerAddress>$customerAddress</customerAddress>
-        <customerCity>$customerCity</customerCity>
-        <customerCountry>$customerCountry</customerCountry>
-        <customerPhone>$customerPhone</customerPhone>
-        <RedirectURL>$redirectURL</RedirectURL>
-        <BackURL>$backURL</BackURL>
-        <customerEmail>$customerEmail</customerEmail>
-        <TransactionSource>gravity-forms</TransactionSource>
-        </Transaction>
-        <Services>
-        <Service>
-        <ServiceType>$accountType</ServiceType>
-        <ServiceDescription>$reference</ServiceDescription>
-        <ServiceDate>$odate</ServiceDate>
-        </Service>
-        </Services>
-        </API3G>
+        <?xml version="1.0" encoding="utf-8"?> <API3G> <CompanyToken>$companyToken</CompanyToken> <Request>createToken</Request> <Transaction> <PaymentAmount>$paymentAmount</PaymentAmount> <PaymentCurrency>$paymentCurrency</PaymentCurrency> <CompanyRef>$reference</CompanyRef> <customerFirstName>$customerFirstName</customerFirstName> <customerLastName>$customerLastName</customerLastName> <customerAddress>$customerAddress</customerAddress> <customerCity>$customerCity</customerCity> <customerCountry>$customerCountry</customerCountry> <customerPhone>$customerPhone</customerPhone> <RedirectURL>$redirectURL</RedirectURL> <BackURL>$backURL</BackURL> <customerEmail>$customerEmail</customerEmail> <TransactionSource>gravity-forms</TransactionSource> </Transaction> <Services> <Service> <ServiceType>$accountType</ServiceType> <ServiceDescription>$reference</ServiceDescription> <ServiceDate>$odate</ServiceDate> </Service> </Services> </API3G>
 POSTXML;
 
         $curl = curl_init();

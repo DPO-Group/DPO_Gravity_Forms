@@ -910,16 +910,12 @@ $html = ob_get_clean();
     public static function notify_handler()
     {
         if ( isset( $_GET["TransactionToken"] ) ) {
-            // Notify DPO Group that the request was successful
-            //            echo "OK";
-
-            $parts = self::process_get( $_GET );
-
-            $merged = GW_DPO_Group_Post_Content_Merge_Tags::get_instance()->replace_merge_tags( $parts );
 
             $instance = self::get_instance();
 
             $returns = $instance->process_get( $_GET );
+
+            $merged = GW_DPO_Group_Post_Content_Merge_Tags::get_instance()->replace_merge_tags( $returns );
 
             $form = GFAPI::get_form( $returns['form_id'] );
             $lead = GFAPI::get_entry( $returns['lead_id'] );
