@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (c) 2021 DPO Group
+ * Copyright (c) 2022 DPO Group
  *
  * Author: App Inlet (Pty) Ltd
  *
@@ -10,25 +10,25 @@
 /**
  * Class dpo-group-pay
  *
- * Create and verify DPO Group payment tokens
+ * Create and verify DPO Pay payment tokens
  */
 class dpo_grouppay
 {
     /**
      * Constants for test (sandbox) or live sites base URL
      */
-    const DPO_Group_URL_TEST = 'https://secure.3gdirectpay.com';
-    const DPO_Group_URL_LIVE = 'https://secure.3gdirectpay.com';
+    const DPO_GROUP_URL_TEST = 'https://secure.3gdirectpay.com';
+    const DPO_GROUP_URL_LIVE = 'https://secure.3gdirectpay.com';
 
     /**
      * @var string DPO_Group payment base URL
      */
-    private $dpo_groupUrl;
+    private string $dpo_groupUrl;
 
     /**
      * @var string DPO_Group payment URL
      */
-    private $dpo_groupGateway;
+    private string $dpo_groupGateway;
 
     /**
      * @var bool True for test mode
@@ -38,44 +38,44 @@ class dpo_grouppay
     /**
      * @var string Appended to return url so script knows whether test mode or not
      */
-    private $testText;
+    private string $testText;
 
     /**
      * @var string DPO_Group Merchant Token
      */
-    private $companyToken;
+    private mixed $companyToken;
 
     /**
      * @var string DPO_Group Service Type
      */
-    private $serviceType;
+    private mixed $serviceType;
 
     /**
      * dpo_grouppay constructor.
+     *
      * @param $settings array(DPO_GroupMerchantToken, DPO_GroupServiceType, testMode)
      */
-    public function __construct( $settings )
+    public function __construct($settings)
     {
-        $testMode = isset( $settings['testMode'] ) ? $settings['testMode'] : false;
-        if ( (int) $testMode == 1 ) {
-            $this->dpo_groupUrl = self::DPO_Group_URL_TEST;
+        $testMode = isset($settings['testMode']) ? $settings['testMode'] : false;
+        if ((int)$testMode == 1) {
+            $this->dpo_groupUrl = self::DPO_GROUP_URL_TEST;
             $this->testMode     = true;
             $this->testText     = 'teston';
         } else {
-            $this->dpo_groupUrl = self::DPO_Group_URL_LIVE;
+            $this->dpo_groupUrl = self::DPO_GROUP_URL_LIVE;
             $this->testMode     = false;
             $this->testText     = 'liveon';
         }
-        $this->companyToken = $settings['DPO_GroupMerchantToken'];
-        $this->serviceType  = $settings['DPO_GroupServiceType'];
+        $this->companyToken     = $settings['DPO_GroupMerchantToken'];
+        $this->serviceType      = $settings['DPO_GroupServiceType'];
         $this->dpo_groupGateway = $this->dpo_groupUrl . '/payv2.php';
-
     }
 
     /**
      * @return mixed|string
      */
-    public function getCompanyToken()
+    public function getCompanyToken(): mixed
     {
         return $this->companyToken;
     }
@@ -83,7 +83,7 @@ class dpo_grouppay
     /**
      * @return mixed|string
      */
-    public function getServiceType()
+    public function getServiceType(): mixed
     {
         return $this->serviceType;
     }
@@ -91,17 +91,19 @@ class dpo_grouppay
     /**
      * @return string
      */
-    public function getDPO_GroupGateway()
+    public function getDPO_GroupGateway(): string
     {
         return $this->dpo_groupGateway;
     }
 
     /**
      * Create a DPO_Group token for payment processing
+     *
      * @param $data
+     *
      * @return array
      */
-    public function createToken( $data )
+    public function createToken($data): array
     {
         $companyToken      = $data['companyToken'];
         $accountType       = $data['accountType'];
@@ -111,20 +113,25 @@ class dpo_grouppay
         $customerLastName  = $data['customerLastName'];
         $customerAddress   = $data['customerAddress'];
         $customerCity      = $data['customerCity'];
-        $customerCountry   = $this->get_country_code( $data['customerCountry'] );
-        $customerPhone     = preg_replace( '/[^0-9]/', '', $data['customerPhone'] );
-        $redirectURL       = $data['redirectURL'];
-        $backURL           = $data['backUrl'];
-        $customerEmail     = $data['customerEmail'];
-        $reference         = $data['companyRef'] . '_' . $this->testText;
+        $customerCountry   = $this->get_country_code($data['customerCountry']);
+        $customerPhone     = preg_replace('/\D/', '', $data['customerPhone']);
+        // Truncate number if over 20 characters
+        $customerPhone = strlen($customerPhone) > 20 ? substr($customerPhone, 0, 20) : $customerPhone;
+        // Pad left with zeros if under 6 characters
+        $customerPhone = str_pad($customerPhone, 6, "0", STR_PAD_LEFT);
 
-        $odate   = date( 'Y/m/d H:i' );
+        $redirectURL   = $data['redirectURL'];
+        $backURL       = $data['backUrl'];
+        $customerEmail = $data['customerEmail'];
+        $reference     = $data['companyRef'] . '_' . $this->testText;
+
+        $odate   = date('Y/m/d H:i');
         $postXml = <<<POSTXML
         <?xml version="1.0" encoding="utf-8"?> <API3G> <CompanyToken>$companyToken</CompanyToken> <Request>createToken</Request> <Transaction> <PaymentAmount>$paymentAmount</PaymentAmount> <PaymentCurrency>$paymentCurrency</PaymentCurrency> <CompanyRef>$reference</CompanyRef> <customerFirstName>$customerFirstName</customerFirstName> <customerLastName>$customerLastName</customerLastName> <customerAddress>$customerAddress</customerAddress> <customerCity>$customerCity</customerCity> <customerCountry>$customerCountry</customerCountry> <customerPhone>$customerPhone</customerPhone> <RedirectURL>$redirectURL</RedirectURL> <BackURL>$backURL</BackURL> <customerEmail>$customerEmail</customerEmail> <TransactionSource>gravity-forms</TransactionSource> </Transaction> <Services> <Service> <ServiceType>$accountType</ServiceType> <ServiceDescription>$reference</ServiceDescription> <ServiceDate>$odate</ServiceDate> </Service> </Services> </API3G>
 POSTXML;
 
         $curl = curl_init();
-        curl_setopt_array( $curl, array(
+        curl_setopt_array($curl, array(
             CURLOPT_URL            => $this->dpo_groupUrl . "/API/v6/",
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING       => "",
@@ -136,43 +143,43 @@ POSTXML;
             CURLOPT_HTTPHEADER     => array(
                 "cache-control: no-cache",
             ),
-        ) );
+        ));
 
         $responded = false;
         $attempts  = 0;
 
         //Try up to 10 times to create token
-        while ( !$responded && $attempts < 10 ) {
+        $error = null;
+        while ( ! $responded && $attempts < 10) {
             $error    = null;
-            $response = curl_exec( $curl );
-            $error    = curl_error( $curl );
+            $response = curl_exec($curl);
+            $error    = curl_error($curl);
 
-            if ( $response != '' ) {
+            if ($response != '') {
                 $responded = true;
             }
             $attempts++;
         }
-        curl_close( $curl );
+        curl_close($curl);
 
-        if ( $error ) {
+        if ($error) {
             return [
                 'success' => false,
                 'error'   => $error,
             ];
-            exit;
         }
 
-        if ( $response != '' ) {
-            $xml = new \SimpleXMLElement( $response );
+        if ($response != '') {
+            $xml = new \SimpleXMLElement($response);
 
             // Check if token was created successfully
-            if ( $xml->xpath( 'Result' )[0] != '000' ) {
+            if ($xml->xpath('Result')[0] != '000') {
                 exit();
             } else {
-                $transToken        = $xml->xpath( 'TransToken' )[0]->__toString();
-                $result            = $xml->xpath( 'Result' )[0]->__toString();
-                $resultExplanation = $xml->xpath( 'ResultExplanation' )[0]->__toString();
-                $transRef          = $xml->xpath( 'TransRef' )[0]->__toString();
+                $transToken        = $xml->xpath('TransToken')[0]->__toString();
+                $result            = $xml->xpath('Result')[0]->__toString();
+                $resultExplanation = $xml->xpath('ResultExplanation')[0]->__toString();
+                $transRef          = $xml->xpath('TransRef')[0]->__toString();
 
                 return [
                     'success'           => true,
@@ -187,17 +194,17 @@ POSTXML;
                 'success' => false,
                 'error'   => $response,
             ];
-            exit;
         }
     }
 
     /**
      * Verify the DPO_Group token created in first step of transaction
+     *
      * @param $data
-     * @return bool|string
-     * @throws Exception
+     *
+     * @return bool|array|string
      */
-    public function verifyToken( $data )
+    public function verifyToken($data): bool|array|string
     {
         $companyToken = $data['companyToken'];
         $transToken   = $data['transToken'];
@@ -205,10 +212,10 @@ POSTXML;
         $verified = false;
         $attempts = 0;
 
-        while ( !$verified && $attempts < 10 ) {
+        while ( ! $verified && $attempts < 10) {
             $err  = null;
             $curl = curl_init();
-            curl_setopt_array( $curl, array(
+            curl_setopt_array($curl, array(
                 CURLOPT_URL            => $this->dpo_groupUrl . "/API/v6/",
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_ENCODING       => "",
@@ -220,18 +227,18 @@ POSTXML;
                 CURLOPT_HTTPHEADER     => array(
                     "cache-control: no-cache",
                 ),
-            ) );
+            ));
 
-            $response = curl_exec( $curl );
-            if ( $response != '' ) {
+            $response = curl_exec($curl);
+            if ($response != '') {
                 $verified = true;
             }
-            $err = curl_error( $curl );
+            $err = curl_error($curl);
             $attempts++;
         }
-        curl_close( $curl );
+        curl_close($curl);
 
-        if ( $err ) {
+        if ($err) {
             return [
                 'success' => false,
                 'error'   => $err,
@@ -244,7 +251,7 @@ POSTXML;
         }
     }
 
-    public function getDPO_GroupPayHtml( $id )
+    public function getDPO_GroupPayHtml($id): string
     {
         return "
           <form action={$this->dpo_groupUrl} method='get' name='dpo_group123'>
@@ -255,10 +262,11 @@ POSTXML;
           </script>";
     }
 
-    private function get_country_code( $customerCountry )
+    private function get_country_code($customerCountry)
     {
         include_once 'CountriesArray.php';
         $countries = new CountriesArray();
-        return $countries->getCountryCode( $customerCountry );
+
+        return $countries->getCountryCode($customerCountry);
     }
 }
