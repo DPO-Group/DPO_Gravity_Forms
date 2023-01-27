@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright (c) 2022 DPO Group
+ * Copyright (c) 2023 DPO Group
  *
  * Author: App Inlet (Pty) Ltd
  *
@@ -123,10 +123,6 @@ class GF_DPO_Group extends GFPaymentAddOn
             if ( ! $errors) {
                 $instance->log_debug('Check status and update order');
 
-                // We are tapping into the Gravity Forms Payment events soe lets set a variable
-                // Depending on the status of our transaction
-                $payment_notification_event = '';
-
                 switch ((string)$status) {
                     case '1':
                         $status_desc = 'approved';
@@ -157,8 +153,7 @@ class GF_DPO_Group extends GFPaymentAddOn
                                 $verify->TransactionApproval->__toString()
                             )
                         );
-                        // Set payment notification event
-                        $payment_notification_event = 'approved_payment';
+                        GFAPI::send_notifications($form, $lead, 'complete_payment');
 
                         $confirmationPageUrl = $feed['0']['meta']['successPageUrl'];
                         $confirmationPageUrl = $instance->dpo_group_add_query_arg(
@@ -187,19 +182,12 @@ class GF_DPO_Group extends GFPaymentAddOn
                             );
                             GFAPI::update_entry_property($notify_data['REFERENCE'], 'payment_status', 'Declined');
                         }
-                        // Set payment notification event
-                        // $payment_notification_event = 'declined_payment';
                         break;
                 }
 
                 $instance->log_debug('Send notifications.');
                 $instance->log_debug($entry);
                 $form = GFFormsModel::get_form_meta($feed[0]['form_id']);
-
-                // Send payment event specific comms that tap into GravityForms Payment events
-                // https://www.gravityhelp.com/documentation/article/send-notifications-on-payment-events/
-                $instance->log_debug('Payment notification event: ' . $payment_notification_event);
-                GFAPI::send_notifications($form, $entry, $payment_notification_event);
 
                 $confirmation_msg = 'Thanks for contacting us! We will get in touch with you shortly.';
                 // Display the correct message depending on transaction status
@@ -1239,8 +1227,7 @@ class GF_DPO_Group extends GFPaymentAddOn
     public function notification_events_dropdown($notification_events): array
     {
         $payment_events = array(
-            'approved_payment' => __('Payment Approved', 'gravityforms'),
-            // 'declined_payment'       => __( 'Payment Declined', 'gravityforms' ),
+            'complete_payment' => __('Payment Complete', 'gravityforms')
         );
 
         return array_merge($notification_events, $payment_events);
@@ -1545,8 +1532,6 @@ class GF_DPO_Group extends GFPaymentAddOn
         }
 
         // Sending notifications
-        // $notifications = rgars($feed, 'meta/selectedNotifications');
-        // GFCommon::send_notifications($notifications, $form, $entry, true, 'form_submission');
         GFAPI::send_notifications($form, $entry, 'form_submission');
 
         do_action('gform_dpo_group_fulfillment', $entry, $feed, $transaction_id, $amount);

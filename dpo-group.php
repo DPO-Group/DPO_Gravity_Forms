@@ -4,9 +4,9 @@
  * Plugin Name: Gravity Forms DPO Pay Add-On
  * Plugin URI: https://github.com/DPO-Group/DPO_Gravity_Forms
  * Description: Integrates Gravity Forms with DPO Pay, a An African payment gateway.
- * Version: 1.0.4
+ * Version: 1.0.5
  * Minimum Gravity Forms Version: 2.2.5
- * Tested Gravity Forms Version: 2.6.7
+ * Tested Gravity Forms Version: 2.6.9
  * Author: DPO Group
  * Author URI: https://www.dpogroup.com/africa/
  * Developer: App Inlet (Pty) Ltd
@@ -14,7 +14,7 @@
  * Text Domain: gravity-forms-dpo-group
  * Domain Path: /languages
  *
- * Copyright: © 2022 DPO Group
+ * Copyright: © 2023 DPO Group
  * License: GNU General Public License v3.0
  * License URI: http://www.gnu.org/licenses/gpl-3.0.html
  */
@@ -60,8 +60,12 @@ function dpo_group_init()
 }
 
 ob_start();
-if ((function_exists('session_status') && session_status() !== PHP_SESSION_ACTIVE) || ! session_id()) {
-    session_start();
+if ( !headers_sent() && empty(session_id())) {
+    try {
+        session_start();
+    } catch (Exception $e) {
+        // Catch exception
+    }
 }
 
 add_action('gform_loaded', array('GF_DPO_Group_Bootstrap', 'load'), 5);
