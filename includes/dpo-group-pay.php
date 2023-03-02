@@ -174,7 +174,10 @@ POSTXML;
 
             // Check if token was created successfully
             if ($xml->xpath('Result')[0] != '000') {
-                exit();
+                return [
+                    'success' => false,
+                    'error'   => $response,
+                ];
             } else {
                 $transToken        = $xml->xpath('TransToken')[0]->__toString();
                 $result            = $xml->xpath('Result')[0]->__toString();

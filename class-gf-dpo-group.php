@@ -826,7 +826,7 @@ class GF_DPO_Group extends GFPaymentAddOn
             }
         } else {
             //Tokens not created
-            header('Location: ' . $data['backUrl']);
+            echo $tokens["error"] ?? 'There was an error.';
             exit;
         }
     }
