@@ -1,3 +1,6 @@
+= 1.0.6 - March 3, 2023 =
+* Improve error display to user.
+
 = 1.0.5 - January 27, 2023 =
 * Test Wordpress 6.1.1 and Gravity Forms 2.6.9.
 * Add support for Payment Complete event.
