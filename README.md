@@ -1,5 +1,5 @@
 # DPO_Gravity_Forms
-## DPO Pay WooCommerce plugin v1.0.6 for Gravity Forms v2.6.9, WordPress v6.1
+## DPO Pay plugin v1.0.6 for Gravity Forms v2.6.9, WordPress v6.1
 
 This is the DPO Pay plugin for Gravity Forms. Please feel free to contact the [DPO Pay support team](https://dpogroup.com/contact-us/) should you require any assistance.
 
