@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright (c) 2023 DPO Group
+ * Copyright (c) 2024 DPO Group
  *
  * Author: App Inlet (Pty) Ltd
  *
@@ -101,10 +101,10 @@ class DPO_Group
 /**
  * Gravity Forms Post Content Merge Tags
  *
- * Adds support for using Gravity Form merge tags in your post content. This functionality requires that the entry ID is
+ * Adds support for using Gravity Form merge tags in your post content. This functionality requires that the entry ID
  * is passed to the post via the "eid" parameter.
  *
- * Setup your confirmation page (requires GFv1.8) or confirmation URL "Redirect Query String" setting to
+ * Set up your confirmation page (requires GFv1.8) or confirmation URL "Redirect Query String" setting to
  * include this parameter: 'eid={entry_id}'. You can then use any entry-based merge tag in your post content.
  *
  */
