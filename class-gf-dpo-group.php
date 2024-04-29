@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright (c) 2023 DPO Group
+ * Copyright (c) 2024 DPO Group
  *
  * Author: App Inlet (Pty) Ltd
  *
@@ -24,7 +24,7 @@ class GF_DPO_Group extends GFPaymentAddOn
     protected $_slug = 'gravity-forms-dpo-group-plugin';
     protected $_path = 'gravity-forms-dpo-group-plugin/dpo-group.php';
     protected $_full_path = __FILE__;
-    protected $_url = 'http://www.gravityforms.com';
+    protected $_url = 'https://www.gravityforms.com';
     protected $_title = 'Gravity Forms DPO Pay Add-On';
     protected $_short_title = 'DPO Pay';
     // Permissions
@@ -578,7 +578,7 @@ class GF_DPO_Group extends GFPaymentAddOn
 
     public function settings_trial_period($field, $echo = true)
     {
-        // Use the parent billing cycle function to make the drop down for the number and type
+        // Use the parent billing cycle function to make the dropdown for the number and type
         return parent::settings_billing_cycle($field);
     }
 
@@ -780,7 +780,7 @@ class GF_DPO_Group extends GFPaymentAddOn
         $reference = 'DPO_Group_Form_' . date('Y-m-d_H:i:s');
 
         /**
-         * Setup the order info to pass to dpo_grouppay
+         * Set up the order info to pass to dpo_grouppay
          */
         $data                      = [];
         $data['companyToken']      = $dpo_grouppay->getCompanyToken();
@@ -1139,7 +1139,7 @@ class GF_DPO_Group extends GFPaymentAddOn
         // Allow the user to do some other kind of validation of the hash
         $hash_matches = apply_filters('gform_dpo_group_hash_matches', $hash_matches, $entry_id, $hash, $custom_field);
 
-        // Validates that Entry Id wasn't tampered with
+        // Validates that Entry ID wasn't tampered with
         if ( ! rgpost('test_itn') && ! $hash_matches) {
             $this->log_error(
                 __METHOD__ . "(): Entry Id verification failed. Hash does not match. Custom field: {$custom_field}. Aborting."
@@ -1923,7 +1923,7 @@ class GF_DPO_Group extends GFPaymentAddOn
 
     private function is_valid_initial_payment_amount($entry_id, $amount_paid): bool
     {
-        // Get amount initially sent to paypfast
+        // Get amount initially sent to DPO Pay
         $amount_sent = gform_get_meta($entry_id, 'payment_amount');
         if (empty($amount_sent)) {
             return true;

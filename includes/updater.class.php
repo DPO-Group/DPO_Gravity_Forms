@@ -53,7 +53,7 @@ class WP_GitHub_Updater_DPO_Group
     public $missing_config;
 
     /**
-     *  temporiraly store the data fetched from GitHub, allows us to only load the data once per class instance
+     *  temporarily store the data fetched from GitHub, allows us to only load the data once per class instance
      * @access private
      */
     private $github_data;
@@ -126,7 +126,7 @@ class WP_GitHub_Updater_DPO_Group
     }
 
     /**
-     * Check wether or not the transients need to be overruled and API needs to be called for every single page load
+     * Check whether or not the transients need to be overruled and API needs to be called for every single page load
      *
      * @return bool overrule or not
      */
@@ -239,22 +239,22 @@ class WP_GitHub_Updater_DPO_Group
      */
     public function get_icons()
     {
-        $assest_url = $this->config['raw_url'] . '/assets/images/';
+        $asset_url = $this->config['raw_url'] . '/assets/images/';
 
         return array(
-            'default' => $assest_url . 'icon-128x128.png',
-            '1x'      => $assest_url . 'icon-128x128.png',
-            '2x'      => $assest_url . 'icon-256x256.png',
+            'default' => $asset_url . 'icon-128x128.png',
+            '1x'      => $asset_url . 'icon-128x128.png',
+            '2x'      => $asset_url . 'icon-256x256.png',
         );
     }
 
     /**
      * Get Raw Response from GitHub
      *
-     * @return array|int $raw_response the raw response
+     * @return mixed $raw_response the raw response
      * @since 1.7
      */
-    public function get_raw_response(): array|int
+    public function get_raw_response(): mixed
     {
         return $this->remote_get(trailingslashit($this->config['raw_url']) . basename($this->config['slug']));
     }
@@ -527,12 +527,14 @@ class WP_GitHub_Updater_DPO_Group
      * Upgrader/Updater
      * Move & activate the plugin, echo the update message
      *
+     * @param bool $true - don't remove, it breaks the updates
+     * @param mixed $hookExtra - don't remove, it breaks the updates
      * @param array $result the result of the move
      *
      * @return array $result the result of the move
      * @since 1.0
      */
-    public function upgrader_post_install(array $result): array
+    public function upgrader_post_install(bool $true, mixed $hookExtra, array $result): array
     {
         global $wp_filesystem;
 

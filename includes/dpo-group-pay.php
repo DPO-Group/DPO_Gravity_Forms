@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (c) 2023 DPO Group
+ * Copyright (c) 2024 DPO Group
  *
  * Author: App Inlet (Pty) Ltd
  *
@@ -219,7 +219,7 @@ POSTXML;
             $err  = null;
             $curl = curl_init();
             curl_setopt_array($curl, array(
-                CURLOPT_URL            => $this->dpo_groupUrl . "/API/v6/",
+                CURLOPT_URL            => $this->dpo_groupUrl . "/API/v7/",
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_ENCODING       => "",
                 CURLOPT_MAXREDIRS      => 10,

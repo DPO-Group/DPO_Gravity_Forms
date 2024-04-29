@@ -1,13 +1,18 @@
+= 1.0.7 - April 29, 2024 =
+* Test WordPress 6.5.2 and Gravity Forms 2.8.8.
+* Update for PHP 8.1.
+* Bug fixes and improvements.
+
 = 1.0.6 - March 3, 2023 =
 * Improve error display to user.
 
 = 1.0.5 - January 27, 2023 =
-* Test Wordpress 6.1.1 and Gravity Forms 2.6.9.
+* Test WordPress 6.1.1 and Gravity Forms 2.6.9.
 * Add support for Payment Complete event.
 * Bug fixes and improvements.
 
 = 1.0.4 - October 12, 2022 =
-* Test Wordpress 6.0 and Gravity Forms 2.6.7.
+* Test WordPress 6.0 and Gravity Forms 2.6.7.
 * Update for PHP 8.0.
 * Bug fixes and improvements.
 
