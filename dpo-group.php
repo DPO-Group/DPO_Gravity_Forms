@@ -4,9 +4,9 @@
  * Plugin Name: Gravity Forms DPO Pay Add-On
  * Plugin URI: https://github.com/DPO-Group/DPO_Gravity_Forms
  * Description: Integrates Gravity Forms with DPO Pay, an African payment gateway.
- * Version: 1.0.7
+ * Version: 1.1.0
  * Minimum Gravity Forms Version: 2.2.5
- * Tested Gravity Forms Version: 2.8.8
+ * Tested Gravity Forms Version: 2.9.1
  * Author: DPO Group
  * Author URI: https://www.dpogroup.com/africa/
  * Developer: App Inlet (Pty) Ltd
@@ -14,7 +14,7 @@
  * Text Domain: gravity-forms-dpo-group
  * Domain Path: /languages
  *
- * Copyright: © 2024 DPO Group
+ * Copyright: © 2025 DPO Group
  * License: GNU General Public License v3.0
  * License URI: http://www.gnu.org/licenses/gpl-3.0.html
  */
@@ -115,6 +115,8 @@ function dpo_group_gform_pre_render_callback($form)
     ob_start();
     ob_clean();
     $form_id = $form['id'];
+
+    // Define constants only once
     define("SCRIPT_DPO", '<script type="text/javascript">');
     define("QUERY_DPO", 'jQuery(document).ready(function($){');
     define("QUERY_FORM_DPO", 'jQuery("#gform_');
@@ -122,31 +124,32 @@ function dpo_group_gform_pre_render_callback($form)
     define('DIV_TAG_DPO_CLOSING', '</div>")');
     define('SCRIPT_TAG_DPO_CLOSING', '</script>');
 
-    if (isset($_SESSION['trans_failed']) && ! empty($_SESSION['trans_failed'])) {
-        $msg = $_SESSION['trans_failed'];
-        echo constant('SCRIPT_DPO');
-        echo constant('QUERY_DPO');
-        echo constant('QUERY_FORM_DPO') . $form_id . constant('APPEND_DPO') . $msg . constant('DIV_TAG_DPO_CLOSING');
-        echo '});';
-        echo constant('SCRIPT_TAG_DPO_CLOSING');
-    } elseif (isset($_SESSION['trans_declined']) && ! empty($_SESSION['trans_declined'])) {
-        $msg = $_SESSION['trans_declined'];
-        echo constant('SCRIPT_DPO');
-        echo constant('QUERY_DPO');
-        echo constant('QUERY_FORM_DPO') . $form_id . constant('APPEND_DPO') . $msg . constant('DIV_TAG_DPO_CLOSING');
-        echo '});';
-        echo constant('SCRIPT_TAG_DPO_CLOSING');
-    } elseif (isset($_SESSION['trans_cancelled']) && ! empty($_SESSION['trans_cancelled'])) {
-        $msg = $_SESSION['trans_cancelled'];
-        echo constant('SCRIPT_DPO');
-        echo constant('QUERY_DPO');
-        echo constant('QUERY_FORM_DPO') . $form_id . constant('APPEND_DPO') . $msg . constant('DIV_TAG_DPO_CLOSING');
-        echo '});';
-        echo constant('SCRIPT_TAG_DPO_CLOSING');
+    // Array of session keys to check
+    $sessionKeys = [
+        'trans_failed',
+        'trans_declined',
+        'trans_cancelled',
+    ];
+
+    foreach ($sessionKeys as $key) {
+        if (!empty($_SESSION[$key])) {
+            $msg = $_SESSION[$key];
+
+            // Generate the JavaScript dynamically
+            echo SCRIPT_DPO;
+            echo QUERY_DPO;
+            echo QUERY_FORM_DPO . $form_id . APPEND_DPO . htmlspecialchars($msg) . DIV_TAG_DPO_CLOSING;
+            echo '});';
+            echo SCRIPT_TAG_DPO_CLOSING;
+
+            // Break after the first matched session key
+            break;
+        }
     }
 
     return $form;
 }
+
 
 add_filter('gform_pre_validation', 'dpo_group_cleanTransaction_status');
 

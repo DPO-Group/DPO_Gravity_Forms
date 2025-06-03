@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright (c) 2024 DPO Group
+ * Copyright (c) 2025 DPO Group
  *
  * Author: App Inlet (Pty) Ltd
  *
@@ -12,8 +12,12 @@ add_action('parse_request', array("GF_DPO_Group", "notify_handler"));
 GFForms::include_payment_addon_framework();
 
 require_once 'includes/dpo-group-tools.php';
-require_once 'includes/dpo-group-pay.php';
+require_once 'includes/DpoGfUtilities.php';
 require_once 'dpo-group.php';
+require_once 'includes/DpoGfForm.php';
+require __DIR__ . '/vendor/autoload.php';
+
+use Dpo\Common\Dpo;
 
 class GF_DPO_Group extends GFPaymentAddOn
 {
@@ -57,54 +61,38 @@ class GF_DPO_Group extends GFPaymentAddOn
 
             $returns = $instance->process_get($_GET);
 
-            $merged = GW_DPO_Group_Post_Content_Merge_Tags::get_instance()->replace_merge_tags($returns);
+            GW_DPO_Group_Post_Content_Merge_Tags::get_instance()->replace_merge_tags($returns);
 
             $form = GFAPI::get_form($returns['form_id']);
             $lead = GFAPI::get_entry($returns['lead_id']);
             $feed = GFAPI::get_feeds($returns['feed_id'], $returns['form_id'], null, true);
 
             //This is the production token stored with feed
-            $DPO_GroupMerchantToken = $feed[0]['meta']['DPO_GroupMerchantToken'];
-            $DPO_GroupServiceType   = $feed[0]['meta']['DPO_GroupServiceType'];
-            $testMode               = isset($returns['mode']) ? (bool)(sanitize_text_field($returns['mode'])) : false;
-            $settings               = array(
-                'testMode'               => $testMode,
-                'DPO_GroupMerchantToken' => $DPO_GroupMerchantToken,
-                'DPO_GroupServiceType'   => $DPO_GroupServiceType,
-            );
-            $dpo_grouppay           = new dpo_grouppay($settings);
-            $data                   = [];
+            $companyToken = $feed[0]['meta']['DPO_GroupMerchantToken'];
+            $testMode     = isset($returns['mode']) && sanitize_text_field($returns['mode']);
+
+            $dpoPay = new Dpo($testMode);
+            $data   = [];
 
             //Actual token depends on mode - test or production
-            $data['companyToken'] = $dpo_grouppay->getCompanyToken();
+            $data['companyToken'] = $companyToken;
             $data['transToken']   = sanitize_text_field($_GET['TransactionToken']);
 
             $verified = false;
-            while ( ! $verified) {
-                $verify = $dpo_grouppay->verifyToken($data);
-                if ($verify['success'] && $verify['response'] != '') {
-                    $verify = new \SimpleXMLElement($verify['response']);
-                    switch ($verify->Result->__toString()) {
-                        case '000':
-                            $status = 1;
-                            break;
-                        case '901':
-                            $status = 2;
-                            break;
-                        case '904':
-                        default:
-                            $status = 4;
-                            break;
-                    }
-                    $verified = true;
-                } else {
-                    $status = 0;
-                }
+            while (!$verified) {
+                $verify   = $dpoPay->verifyToken($data);
+                $verify   = new \SimpleXMLElement($verify);
+                $status   = match ($verify->Result->__toString()) {
+                    '000' => 1,
+                    '901' => 2,
+                    default => 4,
+                };
+                $verified = true;
             }
 
             //Retrieve data from get fields
             $notify_data                   = [];
-            $notify_data['ID']             = isset($returns['eid']) ? $returns['eid'] : '0';
+            $notify_data['ID']             = $returns['eid'] ?? '0';
             $notify_data['REFERENCE']      = sanitize_text_field($_GET['CompanyRef']);
             $notify_data['TRANSACTION_ID'] = sanitize_text_field($_GET['TransactionToken']);
             $notify_data['AMOUNT']         = $verify->TransactionAmount->__toString();
@@ -115,12 +103,13 @@ class GF_DPO_Group extends GFPaymentAddOn
             if (isset($entry->errors)) {
                 $instance->log_error("Entry could not be found. Entry ID: {$notify_data['ID']}. Aborting.");
                 $status = 0;
+                $errors = true;
             }
 
             $instance->log_debug("Entry has been found." . print_r($entry, true));
 
             // Check status and update order
-            if ( ! $errors) {
+            if (!$errors) {
                 $instance->log_debug('Check status and update order');
 
                 switch ((string)$status) {
@@ -128,7 +117,11 @@ class GF_DPO_Group extends GFPaymentAddOn
                         $status_desc = 'approved';
                         // Creates transaction
                         GFAPI::update_entry_property($notify_data['ID'], 'payment_status', 'Approved');
-                        GFAPI::update_entry_property($notify_data['ID'], 'transaction_id', $notify_data['TransID']);
+                        GFAPI::update_entry_property(
+                            $notify_data['ID'],
+                            'transaction_id',
+                            $notify_data['TRANSACTION_ID']
+                        );
                         GFAPI::update_entry_property($notify_data['ID'], 'transaction_type', '1');
                         GFAPI::update_entry_property(
                             $notify_data['ID'],
@@ -150,7 +143,7 @@ class GF_DPO_Group extends GFPaymentAddOn
                             '',
                             'DPO Pay Notify Response',
                             'Transaction approved, DPO Pay TransId: ' . $notify_data['TRANSACTION_ID'] . ' ApprovalCode: ' . sanitize_text_field(
-                                $verify->TransactionApproval->__toString()
+                                $verify->ApprovalNumber->__toString()
                             )
                         );
                         GFAPI::send_notifications($form, $lead, 'complete_payment');
@@ -173,15 +166,7 @@ class GF_DPO_Group extends GFPaymentAddOn
                         break;
                     default:
                         $status_desc = 'failed';
-                        if ($notify_data['ID'] != '0') {
-                            GFFormsModel::add_note(
-                                $notify_data['REFERENCE'],
-                                '',
-                                'DPO Pay Notify Response',
-                                'Transaction declined, DPO Pay TransId: ' . $notify_data['TRANSACTION_ID']
-                            );
-                            GFAPI::update_entry_property($notify_data['REFERENCE'], 'payment_status', 'Declined');
-                        }
+                        self::notifyFailed($notify_data);
                         break;
                 }
 
@@ -191,17 +176,10 @@ class GF_DPO_Group extends GFPaymentAddOn
 
                 $confirmation_msg = 'Thanks for contacting us! We will get in touch with you shortly.';
                 // Display the correct message depending on transaction status
-                foreach ($form['confirmations'] as $row) {
-                    // This condition does NOT working when using the Custom Confirmation Page setting
-                    if ($status_desc == strtolower(str_replace(' ', '', $row['name']))) {
-                        $confirmation_msg = $row['message'];
-                        $confirmation_msg = apply_filters('the_content', $confirmation_msg);
-                        $confirmation_msg = str_replace(']]>', ']]&gt;', $confirmation_msg);
-                    }
-                }
+                $confirmation_msg = self::getConfirmation_msg($form['confirmations'], $status_desc, $confirmation_msg);
                 $confirmation_msg = apply_filters('the_content', $confirmation_msg);
 
-                if ( ! class_exists('GFFormDisplay')) {
+                if (!class_exists('GFFormDisplay')) {
                     require_once GFCommon::get_base_path() . '/form_display.php';
                 }
 
@@ -236,11 +214,50 @@ class GF_DPO_Group extends GFPaymentAddOn
         $feed      = $dpo_group->get_feeds($form_id);
 
         // Ignore ITN messages from forms that are no longer configured with the DPO Pay add-on
-        if ( ! $feed) {
+        if (!$feed) {
             return false;
         }
 
         return $feed[0]; // Only one feed per form is supported (left for backwards compatibility)
+    }
+
+    /**
+     * @param $confirmations
+     * @param string $status_desc
+     * @param mixed $confirmation_msg
+     *
+     * @return array|mixed|string|string[]
+     */
+    public static function getConfirmation_msg($confirmations, string $status_desc, mixed $confirmation_msg): mixed
+    {
+        foreach ($confirmations as $row) {
+            // This condition does NOT working when using the Custom Confirmation Page setting
+            if ($status_desc == strtolower(str_replace(' ', '', $row['name']))) {
+                $confirmation_msg = $row['message'];
+                $confirmation_msg = apply_filters('the_content', $confirmation_msg);
+                $confirmation_msg = str_replace(']]>', ']]&gt;', $confirmation_msg);
+            }
+        }
+
+        return $confirmation_msg;
+    }
+
+    /**
+     * @param array $notify_data
+     *
+     * @return void
+     */
+    public static function notifyFailed(array $notify_data): void
+    {
+        if ($notify_data['ID'] != '0') {
+            GFFormsModel::add_note(
+                $notify_data['REFERENCE'],
+                '',
+                'DPO Pay Notify Response',
+                'Transaction declined, DPO Pay TransId: ' . $notify_data['TRANSACTION_ID']
+            );
+            GFAPI::update_entry_property($notify_data['REFERENCE'], 'payment_status', 'Declined');
+        }
     }
 
     public function init_frontend()
@@ -253,60 +270,15 @@ class GF_DPO_Group extends GFPaymentAddOn
 
     public function plugin_settings_fields()
     {
-        $description = '
-            <p style="text-align: left;">' .
-                       __(
-                           'You will need a DPO Pay account in order to use the DPO Pay Add-On.',
-                           'gravity-forms-dpo-group'
-                       ) .
-                       '</p>
-            <ul>
-                <li>' . sprintf(
-                           __(
-                               'Go to the %sDPO Pay Website%s in order to register an account.',
-                               'gravity-forms-dpo-group'
-                           ),
-                           '<a href="https://dpogroup.com" target="_blank">',
-                           '</a>'
-                       ) . '</li>' .
-                       '<li>' . __(
-                           'Check \'I understand\' and click on \'Update Settings\' in order to proceed.',
-                           'gravity-forms-dpo-group'
-                       ) . '</li>' .
-                       '</ul>
-                <br/>';
+        $dpoForm = new DpoGfForm();
 
-        return array(
-            array(
-                'title'       => '',
-                'description' => $description,
-                'fields'      => array(
-                    array(
-                        'name'    => 'gf_dpo_group_configured',
-                        'label'   => __('I understand', 'gravity-forms-dpo-group'),
-                        'type'    => 'checkbox',
-                        'choices' => array(
-                            array(
-                                'label' => __('', 'gravity-forms-dpo-group'),
-                                'name'  => 'gf_dpo_group_configured',
-                            ),
-                        ),
-                    ),
-                    array(
-                        'type'     => 'save',
-                        'messages' => array(
-                            'success' => __('Settings have been updated.', 'gravity-forms-dpo-group'),
-                        ),
-                    ),
-                ),
-            ),
-        );
+        return $dpoForm->getDpoConfigInstructions();
     }
 
     public function feed_list_no_item_message()
     {
         $settings = $this->get_plugin_settings();
-        if ( ! rgar($settings, 'gf_dpo_group_configured')) {
+        if (!rgar($settings, 'gf_dpo_group_configured')) {
             return sprintf(
                 __('To get started, configure your %sDPO Pay Settings%s!', 'gravity-forms-dpo-group'),
                 '<a href="' . admin_url('admin.php?page=gf_settings&subview=' . $this->_slug) . '">',
@@ -322,109 +294,15 @@ class GF_DPO_Group extends GFPaymentAddOn
         define("H6_TAG", '<h6>');
         define("H6_TAG_CLOSING", '</h6>');
         $default_settings = parent::feed_settings_fields();
+        $dpoForm          = new DpoGfForm();
 
         //--add DPO Pay fields
-        $fields = array(
-            array(
-                'name'     => 'DPO_GroupMerchantToken',
-                'label'    => __('DPO Pay Company Token ', 'gravity-forms-dpo-group'),
-                'type'     => 'text',
-                'class'    => 'medium',
-                'required' => true,
-                'tooltip'  => constant('H6_TAG') . __('DPO Pay Company Token', 'gravity-forms-dpo-group') . constant(
-                        'H6_TAG_CLOSING'
-                    ) . __('Enter your DPO Pay Company Token.', 'gravity-forms-dpo-group'),
-            ),
-            array(
-                'name'     => 'DPO_GroupServiceType',
-                'label'    => __('Service Type', 'gravity-forms-dpo-group'),
-                'type'     => 'text',
-                'class'    => 'medium',
-                'required' => true,
-                'tooltip'  => constant('H6_TAG') . __('DPO Pay Service Type', 'gravity-forms-dpo-group') . constant(
-                        'H6_TAG_CLOSING'
-                    ) . __('Enter your DPO Pay Service Type.', 'gravity-forms-dpo-group'),
-            ),
-            array(
-                'name'          => 'useCustomConfirmationPage',
-                'label'         => __('Use Custom Confirmation Page', 'gravity-forms-dpo-group'),
-                'type'          => 'radio',
-                'choices'       => array(
-                    array(
-                        'id'    => 'gf_dpo_group_thankyou_yes',
-                        'label' => __('Yes', 'gravity-forms-dpo-group'),
-                        'value' => 'yes',
-                    ),
-                    array(
-                        'id'    => 'gf_dpo_group_thakyou_no',
-                        'label' => __('No', 'gravity-forms-dpo-group'),
-                        'value' => 'no',
-                    ),
-                ),
-                'horizontal'    => true,
-                'default_value' => 'yes',
-                'tooltip'       => constant('H6_TAG') . __(
-                        'Use Custom Confirmation Page',
-                        'gravity-forms-dpo-group'
-                    ) . constant('H6_TAG_CLOSING') . __(
-                                       'Select Yes to display custom confirmation thank you page to the user.',
-                                       'gravity-forms-dpo-group'
-                                   ),
-            ),
-            array(
-                'name'    => 'successPageUrl',
-                'label'   => __('Successful Page Url', 'gravity-forms-dpo-group'),
-                'type'    => 'text',
-                'class'   => 'medium',
-                'tooltip' => constant('H6_TAG') . __('Successful Page Url', 'gravity-forms-dpo-group') . constant(
-                        'H6_TAG_CLOSING'
-                    ) . __('Enter a thank you page url when a transaction is successful.', 'gravity-forms-dpo-group'),
-            ),
-            array(
-                'name'    => 'failedPageUrl',
-                'label'   => __('Failed Page Url', 'gravity-forms-dpo-group'),
-                'type'    => 'text',
-                'class'   => 'medium',
-                'tooltip' => constant('H6_TAG') . __('Failed Page Url', 'gravity-forms-dpo-group') . constant(
-                        'H6_TAG_CLOSING'
-                    ) . __('Enter a thank you page url when a transaction is failed.', 'gravity-forms-dpo-group'),
-            ),
-            array(
-                'name'          => 'mode',
-                'label'         => __('Mode', 'gravity-forms-dpo-group'),
-                'type'          => 'radio',
-                'choices'       => array(
-                    array(
-                        'id'    => 'gf_dpo_group_mode_production',
-                        'label' => __('Production', 'gravity-forms-dpo-group'),
-                        'value' => 'production',
-                    ),
-                    array(
-                        'id'    => 'gf_dpo_group_mode_test',
-                        'label' => __('Test', 'gravity-forms-dpo-group'),
-                        'value' => 'test',
-                    ),
-                ),
-                'horizontal'    => true,
-                'default_value' => 'production',
-                'tooltip'       => constant('H6_TAG') . __('Mode', 'gravity-forms-dpo-group') . constant(
-                        'H6_TAG_CLOSING'
-                    ) . __(
-                                       'Select Production to enable live transactions. Select Test for testing with the dummy accounts.',
-                                       'gravity-forms-dpo-group'
-                                   ),
-            ),
-        );
+        $fields = $dpoForm->getFields();
 
         $default_settings = parent::add_field_after('feedName', $fields, $default_settings);
         //--------------------------------------------------------------------------------------
 
-        $message          = array(
-            'name'  => 'message',
-            'label' => __('DPO Pay does not currently support subscription billing', 'gravityformsstripe'),
-            'style' => 'width:40px;text-align:center;',
-            'type'  => 'checkbox',
-        );
+        $message          = $dpoForm->getBillingMsg();
         $default_settings = $this->add_field_after('trial', $message, $default_settings);
 
         $default_settings = $this->remove_field('recurringTimes', $default_settings);
@@ -465,49 +343,12 @@ class GF_DPO_Group extends GFPaymentAddOn
         $default_settings = $this->add_field_before('feedName', $fields, $default_settings);
 
         // Add Page Style, Continue Button Label, Cancel URL
-        $fields = array(
-            array(
-                'name'     => 'continueText',
-                'label'    => __('Continue Button Label', 'gravity-forms-dpo-group'),
-                'type'     => 'text',
-                'class'    => 'medium',
-                'required' => false,
-                'tooltip'  => '<h6>' . __('Continue Button Label', 'gravity-forms-dpo-group') . '</h6>' . __(
-                        'Enter the text that should appear on the continue button once payment has been completed via DPO Pay.',
-                        'gravity-forms-dpo-group'
-                    ),
-            ),
-            array(
-                'name'     => 'cancelUrl',
-                'label'    => __('Cancel URL', 'gravity-forms-dpo-group'),
-                'type'     => 'text',
-                'class'    => 'medium',
-                'required' => false,
-                'tooltip'  => '<h6>' . __('Cancel URL', 'gravity-forms-dpo-group') . '</h6>' . __(
-                        'Enter the URL the user should be sent to should they cancel before completing their payment. It currently defaults to the DPO Pay website.',
-                        'gravity-forms-dpo-group'
-                    ),
-            ),
-        );
+        $fields = $dpoForm->getCancelUrl();
 
         // Add post fields if form has a post
         $form = $this->get_current_form();
         if (GFCommon::has_post_field($form['fields'])) {
-            $post_settings = array(
-                'name'    => 'post_checkboxes',
-                'label'   => __('Posts', 'gravity-forms-dpo-group'),
-                'type'    => 'checkbox',
-                'tooltip' => '<h6>' . __('Posts', 'gravity-forms-dpo-group') . '</h6>' . __(
-                        'Enable this option if you would like to only create the post after payment has been received.',
-                        'gravity-forms-dpo-group'
-                    ),
-                'choices' => array(
-                    array(
-                        'label' => __('Create post only when payment is received.', 'gravity-forms-dpo-group'),
-                        'name'  => 'delayPost',
-                    ),
-                ),
-            );
+            $post_settings = $dpoForm->getPostSettings();
 
             if ($this->get_setting('transactionType') == 'subscription') {
                 $post_settings['choices'][] = array(
@@ -731,7 +572,7 @@ class GF_DPO_Group extends GFPaymentAddOn
     public function redirect_url($feed, $submission_data, $form, $entry)
     {
         // Don't process redirect url if request is a DPO Pay return
-        if ( ! rgempty('gf_dpo_group_return', $_GET)) {
+        if (!rgempty('gf_dpo_group_return', $_GET)) {
             return false;
         }
 
@@ -752,28 +593,21 @@ class GF_DPO_Group extends GFPaymentAddOn
         $eid        = DPO_Group_GF_encryption($entry['id'], 'e');
         $return_url = $this->dpo_group_add_query_arg(array('eid' => $eid), $return_url);
 
-        $testMode               = $feed['meta']['mode'] === 'test';
-        $return_url             = $this->dpo_group_add_query_arg(
+        $testMode     = $feed['meta']['mode'] === 'test';
+        $return_url   = $this->dpo_group_add_query_arg(
             array('mode' => $testMode ? 'on' : 'off'),
             $return_url
         );
-        $DPO_GroupMerchantToken = $feed['meta']['DPO_GroupMerchantToken'];
+        $companyToken = $feed['meta']['DPO_GroupMerchantToken'];
         setcookie(
             'DPO_GroupMerchantToken',
-            DPO_Group_GF_encryption($DPO_GroupMerchantToken, 'e'),
+            DPO_Group_GF_encryption($companyToken, 'e'),
             time() + 24 * 3600 * 30
         );
-        $DPO_GroupServiceType = $feed['meta']['DPO_GroupServiceType'];
-        $settings             = array(
-            'DPO_GroupMerchantToken' => $DPO_GroupMerchantToken,
-            'DPO_GroupServiceType'   => $DPO_GroupServiceType,
-            'testMode'               => $testMode,
-        );
+        $serviceType = $feed['meta']['DPO_GroupServiceType'];
 
-        /*
-         * dpo_grouppay class does the actual work with tokens
-         */
-        $dpo_grouppay = new dpo_grouppay($settings);
+        $dpoPay    = new Dpo($testMode);
+        $utilities = new DpoGfUtilities();
 
         $amount    = number_format(GFCommon::get_order_total($form, $entry), 2, '.', '');
         $currency  = GFCommon::get_currency();
@@ -783,15 +617,15 @@ class GF_DPO_Group extends GFPaymentAddOn
          * Set up the order info to pass to dpo_grouppay
          */
         $data                      = [];
-        $data['companyToken']      = $dpo_grouppay->getCompanyToken();
-        $data['accountType']       = $dpo_grouppay->getServiceType();
+        $data['companyToken']      = $companyToken;
+        $data['serviceType']       = $serviceType;
         $data['paymentAmount']     = $amount;
         $data['paymentCurrency']   = $currency;
         $data['customerFirstName'] = $entry[$feed['meta']['billingInformation_firstName']];
         $data['customerLastName']  = $entry[$feed['meta']['billingInformation_lastName']];
         $data['customerAddress']   = $entry[$feed['meta']['billingInformation_address']];
         $data['customerCity']      = $entry[$feed['meta']['billingInformation_city']];
-        $data['customerCountry']   = $entry[$feed['meta']['billingInformation_country']];
+        $data['customerCountry']   = $utilities->get_country_code($entry[$feed['meta']['billingInformation_country']]);
         $data['customerPhone']     = str_replace([
                                                      '+',
                                                      '-',
@@ -800,11 +634,12 @@ class GF_DPO_Group extends GFPaymentAddOn
                                                      ' ',
                                                  ], '', $entry[$feed['meta']['billingInformation_phone']]);
         $data['redirectURL']       = $return_url;
-        $data['backUrl']           = $back_url;
+        $data['backURL']           = $back_url;
         $data['customerEmail']     = $entry[$feed['meta']['billingInformation_email']];
+        $data['companyAccRef']     = $reference;
         $data['companyRef']        = $reference;
 
-        $tokens = $dpo_grouppay->createToken($data);
+        $tokens = $dpoPay->createToken($data);
 
         if ($tokens['success'] === true) {
             $data['transToken'] = $tokens['transToken'];
@@ -812,16 +647,19 @@ class GF_DPO_Group extends GFPaymentAddOn
             $verified = null;
 
             while ($verified === null) {
-                $verify = $dpo_grouppay->verifyToken($data);
+                $verify = $dpoPay->verifyToken(
+                    [
+                        'companyToken' => $companyToken,
+                        'transToken'   => $tokens['transToken']
+                    ]
+                );
 
-                if ($verify['success'] && $verify['response'] != '') {
-                    $verify = new \SimpleXMLElement($verify['response']);
-                    if ($verify->Result->__toString() === '900') {
-                        $verified = true;
-                        $payUrl   = $dpo_grouppay->getDPO_GroupGateway() . '?ID=' . $data['transToken'];
-                        header('Location: ' . $payUrl);
-                        exit;
-                    }
+                $verify = new \SimpleXMLElement($verify);
+                if ($verify->Result->__toString() === '900') {
+                    $verified = true;
+                    $payUrl   = $dpoPay->getPayUrl() . '?ID=' . $data['transToken'];
+                    header('Location: ' . $payUrl);
+                    exit;
                 }
             }
         } else {
@@ -848,6 +686,8 @@ class GF_DPO_Group extends GFPaymentAddOn
         $cmd           = '_cart';
         $extra_qs      = '&upload=1';
 
+        $utilities = new DpoGfUtilities();
+
         // Work on products
         if (is_array($line_items)) {
             foreach ($line_items as $item) {
@@ -859,35 +699,19 @@ class GF_DPO_Group extends GFPaymentAddOn
 
                 if ($is_shipping) {
                     // Populate shipping info
-                    $shipping .= ! empty($unit_price) ? "&shipping_1={$unit_price}" : '';
+                    $shipping .= !empty($unit_price) ? "&shipping_1={$unit_price}" : '';
                 } else {
                     // Add product info to querystring
                     $query_string .= "&item_name_{$product_index}={$product_name}&amount_{$product_index}={$unit_price}&quantity_{$product_index}={$quantity}";
                 }
                 // Add options
-                if (is_array($options) && ! empty($options)) {
-                    $option_index = 1;
-                    foreach ($options as $option) {
-                        $option_label = urlencode($option['field_label']);
-                        $option_name  = urlencode($option['option_name']);
-                        $query_string .= "&on{$option_index}_{$product_index}={$option_label}&os{$option_index}_{$product_index}={$option_name}";
-                        $option_index++;
-                    }
-                }
+                $query_string = $utilities->addOptions($options, $product_index, $query_string);
                 $product_index++;
             }
         }
 
         // Look for discounts
-        if (is_array($discounts)) {
-            foreach ($discounts as $discount) {
-                $discount_full = abs($discount['unit_price']) * $discount['quantity'];
-                $discount_amt  += $discount_full;
-            }
-            if ($discount_amt > 0) {
-                $query_string .= "&discount_amount_cart={$discount_amt}";
-            }
-        }
+        $query_string = $utilities->getDiscounts($discounts, $discount_amt, $query_string);
 
         $query_string .= "{$shipping}&cmd={$cmd}{$extra_qs}";
 
@@ -907,6 +731,7 @@ class GF_DPO_Group extends GFPaymentAddOn
         $line_items     = rgar($submission_data, 'line_items');
         $purpose        = '';
         $cmd            = '_donations';
+        $utilities      = new DpoGfUtilities();
 
         // Work on products
         if (is_array($line_items)) {
@@ -918,21 +743,15 @@ class GF_DPO_Group extends GFPaymentAddOn
                 $is_shipping     = rgar($item, 'is_shipping');
                 $product_options = '';
 
-                if ( ! $is_shipping) {
+                if (!$is_shipping) {
                     // Add options
-                    if (is_array($options) && ! empty($options)) {
-                        $product_options = ' (';
-                        foreach ($options as $option) {
-                            $product_options .= $option['option_name'] . ', ';
-                        }
-                        $product_options = substr($product_options, 0, strlen($product_options) - 2) . ')';
-                    }
-                    $purpose .= $quantity_label . $product_name . $product_options . ', ';
+                    $product_options = $utilities->getOptions($options, $product_options);
+                    $purpose         .= $quantity_label . $product_name . $product_options . ', ';
                 }
             }
         }
 
-        if ( ! empty($purpose)) {
+        if (!empty($purpose)) {
             $purpose = substr($purpose, 0, strlen($purpose) - 2);
         }
 
@@ -968,7 +787,7 @@ class GF_DPO_Group extends GFPaymentAddOn
                 ) : GFCommon::get_us_state_code($value);
             }
 
-            if ( ! empty($value)) {
+            if (!empty($value)) {
                 $fields .= "&{$field['name']}=" . urlencode($value);
             }
         }
@@ -1077,11 +896,11 @@ class GF_DPO_Group extends GFPaymentAddOn
         $feed            = $this->get_payment_feed($entry);
         $submission_data = $this->get_submission_data($feed, $form, $entry);
 
-        if ( ! $feed || empty($submission_data['payment_amount'])) {
+        if (!$feed || empty($submission_data['payment_amount'])) {
             return $is_disabled;
         }
 
-        return ! rgempty('delayPost', $feed['meta']);
+        return !rgempty('delayPost', $feed['meta']);
     }
 
     //------- PROCESSING DPO Pay (Callback) -----------//
@@ -1093,7 +912,7 @@ class GF_DPO_Group extends GFPaymentAddOn
         $submission_data = $this->get_submission_data($feed, $form, $entry);
         $this->log_debug(json_encode($submission_data));
 
-        if ( ! $feed || empty($submission_data['payment_amount'])) {
+        if (!$feed || empty($submission_data['payment_amount'])) {
             return $is_disabled;
         }
 
@@ -1112,7 +931,7 @@ class GF_DPO_Group extends GFPaymentAddOn
     {
         $feed = parent::get_payment_feed($entry, $form);
 
-        if (empty($feed) && ! empty($entry['id'])) {
+        if (empty($feed) && !empty($entry['id'])) {
             // Looking for feed created by legacy versions
             $feed = $this->get_dpo_group_feed_by_entry($entry['id']);
         }
@@ -1122,15 +941,9 @@ class GF_DPO_Group extends GFPaymentAddOn
         return $feed;
     }
 
-    public function get_entry($custom_field): bool
+    public function get_entry($custom_field): mixed
     {
-        if (empty($custom_field)) {
-            $this->log_error(
-                __METHOD__ . '(): ITN request does not have a custom field, so it was not created by Gravity Forms. Aborting.'
-            );
-
-            return false;
-        }
+        $this->checkCustomField($custom_field);
 
         // Getting entry associated with this ITN message (entry id is sent in the 'custom' field)
         list($entry_id, $hash) = explode('|', $custom_field);
@@ -1140,7 +953,7 @@ class GF_DPO_Group extends GFPaymentAddOn
         $hash_matches = apply_filters('gform_dpo_group_hash_matches', $hash_matches, $entry_id, $hash, $custom_field);
 
         // Validates that Entry ID wasn't tampered with
-        if ( ! rgpost('test_itn') && ! $hash_matches) {
+        if (!rgpost('test_itn') && !$hash_matches) {
             $this->log_error(
                 __METHOD__ . "(): Entry Id verification failed. Hash does not match. Custom field: {$custom_field}. Aborting."
             );
@@ -1161,9 +974,20 @@ class GF_DPO_Group extends GFPaymentAddOn
         return $entry;
     }
 
+    public function checkCustomField($customField)
+    {
+        if (empty($customField)) {
+            $this->log_error(
+                __METHOD__ . '(): ITN request does not have a custom field, so it was not created by Gravity Forms. Aborting.'
+            );
+
+            return false;
+        }
+    }
+
     public function modify_post($post_id, $action): bool
     {
-        if ( ! $post_id) {
+        if (!$post_id) {
             return false;
         }
 
@@ -1319,12 +1143,12 @@ class GF_DPO_Group extends GFPaymentAddOn
     public function admin_edit_payment_status($payment_status, $form, $lead): string
     {
         // Allow the payment status to be edited when for DPO Pay, not set to Approved/Paid, and not a subscription
-        if ( ! $this->is_payment_gateway($lead['id']) || strtolower(
-                                                             rgpost('save')
-                                                         ) != 'edit' || $payment_status == 'Approved' || $payment_status == 'Paid' || rgar(
-                                                                                                                                          $lead,
-                                                                                                                                          'transaction_type'
-                                                                                                                                      ) == 2) {
+        if (!$this->is_payment_gateway($lead['id']) || strtolower(
+                                                           rgpost('save')
+                                                       ) != 'edit' || $payment_status == 'Approved' || $payment_status == 'Paid' || rgar(
+                                                                                                                                        $lead,
+                                                                                                                                        'transaction_type'
+                                                                                                                                    ) == 2) {
             return $payment_status;
         }
 
@@ -1341,7 +1165,7 @@ class GF_DPO_Group extends GFPaymentAddOn
     public function admin_edit_payment_date($payment_date, $form, $lead): string
     {
         // Allow the payment date to be edited
-        if ( ! $this->is_payment_gateway($lead['id']) || strtolower(rgpost('save')) != 'edit') {
+        if (!$this->is_payment_gateway($lead['id']) || strtolower(rgpost('save')) != 'edit') {
             return $payment_date;
         }
 
@@ -1356,7 +1180,7 @@ class GF_DPO_Group extends GFPaymentAddOn
     public function admin_edit_payment_transaction_id($transaction_id, $form, $lead): string
     {
         // Allow the transaction ID to be edited
-        if ( ! $this->is_payment_gateway($lead['id']) || strtolower(rgpost('save')) != 'edit') {
+        if (!$this->is_payment_gateway($lead['id']) || strtolower(rgpost('save')) != 'edit') {
             return $transaction_id ?? '';
         }
 
@@ -1366,7 +1190,7 @@ class GF_DPO_Group extends GFPaymentAddOn
     public function admin_edit_payment_amount($payment_amount, $form, $lead): string
     {
         // Allow the payment amount to be edited
-        if ( ! $this->is_payment_gateway($lead['id']) || strtolower(rgpost('save')) != 'edit') {
+        if (!$this->is_payment_gateway($lead['id']) || strtolower(rgpost('save')) != 'edit') {
             return $payment_amount;
         }
 
@@ -1380,7 +1204,7 @@ class GF_DPO_Group extends GFPaymentAddOn
     public function admin_edit_payment_status_details($form_id, $lead)
     {
         $form_action = strtolower(rgpost('save'));
-        if ( ! $this->is_payment_gateway($lead['id']) || $form_action != 'edit') {
+        if (!$this->is_payment_gateway($lead['id']) || $form_action != 'edit') {
             return;
         }
 
@@ -1447,7 +1271,7 @@ class GF_DPO_Group extends GFPaymentAddOn
 
         // Update payment information in admin, need to use this function so the lead data is updated before displayed in the sidebar info section
         $form_action = strtolower(rgpost('save'));
-        if ( ! $this->is_payment_gateway($lead_id) || $form_action != 'update') {
+        if (!$this->is_payment_gateway($lead_id) || $form_action != 'update') {
             return;
         }
         // Get lead
@@ -1489,7 +1313,7 @@ class GF_DPO_Group extends GFPaymentAddOn
         $lead['transaction_id'] = $payment_transaction;
 
         // If payment status does not equal approved/paid or the lead has already been fulfilled, do not continue with fulfillment
-        if (($payment_status == 'Approved' || $payment_status == 'Paid') && ! $lead['is_fulfilled']) {
+        if (($payment_status == 'Approved' || $payment_status == 'Paid') && !$lead['is_fulfilled']) {
             $action['id']             = $payment_transaction;
             $action['type']           = 'complete_payment';
             $action['transaction_id'] = $payment_transaction;
@@ -1520,7 +1344,7 @@ class GF_DPO_Group extends GFPaymentAddOn
 
     public function fulfill_order(&$entry, $transaction_id, $amount, $feed = null)
     {
-        if ( ! $feed) {
+        if (!$feed) {
             $feed = $this->get_payment_feed($entry);
         }
 
@@ -1611,7 +1435,7 @@ class GF_DPO_Group extends GFPaymentAddOn
         );
 
         foreach ($old_feed['meta'] as $key => $value) {
-            if ( ! in_array($key, $known_meta_keys)) {
+            if (!in_array($key, $known_meta_keys)) {
                 $new_meta[$key] = $value;
             }
         }
@@ -1816,6 +1640,7 @@ class GF_DPO_Group extends GFPaymentAddOn
         return $results;
     }
 
+
     protected function dpo_group_add_query_arg($query, $url): string
     {
         $myurl = $url;
@@ -1828,63 +1653,61 @@ class GF_DPO_Group extends GFPaymentAddOn
 
     protected function process_get($get)
     {
-        $returns = [];
+        $utilities = new DpoGfUtilities();
+        $returns   = [];
         if (isset($get['eid'])) {
             $s    = $get['eid'];
             $gets = explode('?', $s);
+
             foreach ($gets as $item) {
                 $parts = explode('=', $item);
-                if (count($parts) == 1) {
+
+                if (count($parts) === 1) {
                     $returns['id'] = DPO_Group_GF_encryption($parts[0], 'd');
                 } else {
-                    if ($parts[0] == 'mode') {
-                        $returns[$parts[0]] = $parts[1];
-                    } elseif ($parts[0] == 'eid') {
-                        $returns[$parts[0]]       = DPO_Group_GF_encryption($parts[1], 'd');
-                        $returns[$parts[0] . 'u'] = $parts[1];
-                    } else {
-                        $returns[$parts[0]] = DPO_Group_GF_encryption($parts[1], 'd');
-                    }
+                    [$key, $value] = $parts;
+
+                    $decryptedValue = DPO_Group_GF_encryption($value, 'd');
+                    match ($key) {
+                        'mode' => $returns[$key] = $value,
+                        'eid' => [
+                            $returns[$key] = $decryptedValue,
+                            $returns[$key . 'u'] = $value,
+                        ],
+                        default => $returns[$key] = $decryptedValue,
+                    };
                 }
             }
-            $gfs             = explode('&', $returns['gf_dpo_group_return']);
-            $returns['hash'] = explode('=', $gfs[1])[1];
-            $ids             = explode('=', $gfs[0])[1];
-            list($returns['form_id'], $returns['lead_id'], $returns['user_id'], $returns['feed_id']) = explode(
-                '|',
-                $ids
-            );
 
-            return $returns;
+            return $utilities->setReturns($returns);
         }
+
 
         if (isset($get['gf_dpo_group_return'])) {
             $s    = $get['gf_dpo_group_return'];
             $gets = explode('?', $s);
+
             foreach ($gets as $item) {
                 $parts = explode('=', $item);
-                if (count($parts) == 1) {
+
+                if (count($parts) === 1) {
                     $returns['gf_dpo_group_return'] = DPO_Group_GF_encryption($parts[0], 'd');
                 } else {
-                    if ($parts[0] == 'mode') {
-                        $returns[$parts[0]] = $parts[1];
-                    } elseif ($parts[0] == 'eid') {
-                        $returns[$parts[0]]       = DPO_Group_GF_encryption($parts[1], 'd');
-                        $returns[$parts[0] . 'u'] = $parts[1];
-                    } else {
-                        $returns[$parts[0]] = DPO_Group_GF_encryption($parts[1], 'd');
-                    }
+                    [$key, $value] = $parts;
+
+                    $decryptedValue = DPO_Group_GF_encryption($value, 'd');
+                    match ($key) {
+                        'mode' => $returns[$key] = $value,
+                        'eid' => [
+                            $returns[$key] = $decryptedValue,
+                            $returns[$key . 'u'] = $value,
+                        ],
+                        default => $returns[$key] = $decryptedValue,
+                    };
                 }
             }
-            $gfs             = explode('&', $returns['gf_dpo_group_return']);
-            $returns['hash'] = explode('=', $gfs[1])[1];
-            $ids             = explode('=', $gfs[0])[1];
-            list($returns['form_id'], $returns['lead_id'], $returns['user_id'], $returns['feed_id']) = explode(
-                '|',
-                $ids
-            );
 
-            return $returns;
+            return $utilities->setReturns($returns);
         }
     }
 
@@ -1898,7 +1721,7 @@ class GF_DPO_Group extends GFPaymentAddOn
         $feed_id = gform_get_meta($entry_id, 'dpo_group_feed_id');
         $feed    = $this->get_feed($feed_id);
 
-        return ! empty($feed) ? $feed : false;
+        return !empty($feed) ? $feed : false;
     }
 
     // This function kept static for backwards compatibility
@@ -1920,7 +1743,6 @@ class GF_DPO_Group extends GFPaymentAddOn
 
     // This function kept static for backwards compatibility
     // This needs to be here until all add-ons are on the framework, otherwise they look for this function
-
     private function is_valid_initial_payment_amount($entry_id, $amount_paid): bool
     {
         // Get amount initially sent to DPO Pay
