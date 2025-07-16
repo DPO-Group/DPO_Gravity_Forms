@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/DPO-Group/DPO_Gravity_Forms/releases/tag/v1.2.0)
+
+### Added
+
+- Update for WordPress 6.8.1 and Gravity Forms 2.9.10.
+- Code standards for PHP 8.2.
+- Updated the DPO Common Library.
+
 ## [1.1.0](https://github.com/DPO-Group/DPO_Gravity_Forms/releases/tag/v1.1.0)
 
 ### Added
