@@ -1,17 +1,17 @@
 <?php
 
 /**
- * Plugin Name: Gravity Forms DPO Pay Add-On
+ * Plugin Name: DPO Pay Add-On for Gravity Forms
  * Plugin URI: https://github.com/DPO-Group/DPO_Gravity_Forms
  * Description: Integrates Gravity Forms with DPO Pay, an African payment gateway.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Minimum Gravity Forms Version: 2.2.5
- * Tested Gravity Forms Version: 2.9.1
+ * Tested Gravity Forms Version: 2.9.10
  * Author: DPO Group
  * Author URI: https://www.dpogroup.com/africa/
  * Developer: App Inlet (Pty) Ltd
  * Developer URI: https://www.appinlet.com/
- * Text Domain: gravity-forms-dpo-group
+ * Text Domain: gravity-forms-dpo-group-plugin
  * Domain Path: /languages
  *
  * Copyright: © 2025 DPO Group
@@ -60,11 +60,12 @@ function dpo_group_init()
 }
 
 ob_start();
-if ( !headers_sent() && empty(session_id())) {
-    try {
+if (!headers_sent() && empty(session_id())) {
+    try{
         session_start();
-    } catch (Exception $e) {
+    } catch (Exception $e){
         // Catch exception
+        error_log('[DPO GF] Session start exception: ' . $e->getMessage());
     }
 }
 
@@ -79,7 +80,7 @@ class GF_DPO_Group_Bootstrap
 
     public static function load()
     {
-        if ( ! method_exists('GFForms', 'include_payment_addon_framework')) {
+        if (!method_exists('GFForms', 'include_payment_addon_framework')) {
             return;
         }
 
@@ -93,20 +94,19 @@ class GF_DPO_Group_Bootstrap
 // Filters for payment status message
 function dpo_group_change_message($message, $form)
 {
-    if (isset($_SESSION['trans_failed']) && ! empty($_SESSION['trans_failed']) && strlen(
-                                                                                      $_SESSION['trans_failed']
-                                                                                  ) > 0) {
-        $err_msg = $_SESSION['trans_failed'];
-
-        return "<div class='validation_error'>" . $_SESSION['trans_failed'] . '</div>';
-    } elseif (isset($_SESSION['trans_declined']) && ! empty($_SESSION['trans_declined'])) {
-        $err_msg = $_SESSION['trans_declined'];
-
-        return "<div class='validation_error'>" . $_SESSION['trans_declined'] . '</div>';
-    } else {
-        return $message;
+    if (!empty($_SESSION['trans_failed'])) {
+        $err_msg = esc_html(sanitize_text_field($_SESSION['trans_failed']));
+        unset($_SESSION['trans_failed']);
+        return "<div class='validation_error'>{$err_msg}</div>";
+    } elseif (!empty($_SESSION['trans_declined'])) {
+        $err_msg = esc_html(sanitize_text_field($_SESSION['trans_declined']));
+        unset($_SESSION['trans_declined']);
+        return "<div class='validation_error'>{$err_msg}</div>";
     }
+
+    return $message;
 }
+
 
 add_filter('gform_pre_render', 'dpo_group_gform_pre_render_callback');
 
@@ -133,14 +133,14 @@ function dpo_group_gform_pre_render_callback($form)
 
     foreach ($sessionKeys as $key) {
         if (!empty($_SESSION[$key])) {
-            $msg = $_SESSION[$key];
+            $msg = sanitize_text_field($_SESSION[$key]);
 
             // Generate the JavaScript dynamically
-            echo SCRIPT_DPO;
-            echo QUERY_DPO;
-            echo QUERY_FORM_DPO . $form_id . APPEND_DPO . htmlspecialchars($msg) . DIV_TAG_DPO_CLOSING;
-            echo '});';
-            echo SCRIPT_TAG_DPO_CLOSING;
+            echo esc_js(SCRIPT_DPO);
+            echo esc_js(QUERY_DPO);
+            echo esc_js(QUERY_FORM_DPO . $form_id . APPEND_DPO) . esc_html($msg) . esc_js(DIV_TAG_DPO_CLOSING);
+            echo esc_js('});');
+            echo esc_js(SCRIPT_TAG_DPO_CLOSING);
 
             // Break after the first matched session key
             break;
@@ -166,16 +166,17 @@ add_filter('gform_after_submission', 'dpo_group_gw_conditional_requirement');
 
 function dpo_group_gw_conditional_requirement($form)
 {
-    if (isset($_SESSION['trans_failed']) && ! empty($_SESSION['trans_failed'])) {
-        $confirmation = $_SESSION['trans_failed'];
+    if (!empty($_SESSION['trans_failed'])) {
+        $confirmation = sanitize_text_field($_SESSION['trans_failed']);
         add_filter('gform_validation_message', 'dpo_group_change_message', 10, 2);
-    } elseif (isset($_SESSION['trans_declined']) && ! empty($_SESSION['trans_declined'])) {
-        $confirmation = $_SESSION['trans_declined'];
+    } elseif (!empty($_SESSION['trans_declined'])) {
+        $confirmation = sanitize_text_field($_SESSION['trans_declined']);
         add_filter('gform_validation_message', 'dpo_group_change_message', 10, 2);
     }
 
     return $form;
 }
+
 
 /**
  * Encrypt and decrypt

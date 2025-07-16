@@ -264,6 +264,7 @@ class CountriesArray
                 return $val[2];
             }
         }
+        return '';
     }
 
     public function getCountryCode($countryName)
@@ -273,5 +274,6 @@ class CountriesArray
                 return $key;
             }
         }
+        return '';
     }
 }
